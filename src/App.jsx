@@ -68,7 +68,7 @@ export default function App() {
               </div>
             </div>
 
-            <SlideViewer slides={materi.slides} />
+            <SlideViewer slides={materi.slides} title={materi.title} />
           </section>
         ))}
       </main>

@@ -1,14 +1,17 @@
 import { useState, useRef, useEffect } from "react";
+import PptxGenJS from "pptxgenjs";
 import {
   LuChevronLeft,
   LuChevronRight,
   LuMaximize2,
   LuMinimize2,
+  LuDownload,
 } from "react-icons/lu";
 
-export default function SlideViewer({ slides }) {
+export default function SlideViewer({ slides, title = "Materi-Slide" }) {
   const [current, setCurrent] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const containerRef = useRef(null);
 
   const prevSlide = () => setCurrent((prev) => (prev > 0 ? prev - 1 : prev));
@@ -23,6 +26,43 @@ export default function SlideViewer({ slides }) {
     }
   };
 
+  const toBase64 = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  const handleDownloadPptx = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+
+    try {
+      const pptx = new PptxGenJS();
+      pptx.layout = "LAYOUT_16x9";
+
+      for (let i = 0; i < slides.length; i++) {
+        const response = await fetch(slides[i].image);
+        const blob = await response.blob();
+        const base64 = await toBase64(blob);
+
+        const slide = pptx.addSlide();
+        slide.addImage({
+          data: base64,
+          x: 0,
+          y: 0,
+          w: "100%",
+          h: "100%",
+        });
+      }
+
+      await pptx.writeFile({ fileName: `${title || "Materi-Slide"}.pptx` });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(document.fullscreenElement === containerRef.current);
@@ -30,8 +70,12 @@ export default function SlideViewer({ slides }) {
 
     const handleKeyDown = (e) => {
       if (document.fullscreenElement === containerRef.current) {
-        if (e.key === "ArrowLeft") prevSlide();
-        if (e.key === "ArrowRight") nextSlide();
+        if (e.key === "ArrowLeft") {
+          setCurrent((prev) => (prev > 0 ? prev - 1 : prev));
+        }
+        if (e.key === "ArrowRight") {
+          setCurrent((prev) => (prev < slides.length - 1 ? prev + 1 : prev));
+        }
       }
     };
 
@@ -121,17 +165,34 @@ export default function SlideViewer({ slides }) {
           ))}
         </div>
 
-        {/* Tombol Fullscreen */}
-        <button
-          onClick={toggleFullscreen}
-          title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-secondary hover:bg-primary transition cursor-pointer"
-        >
-          {isFullscreen ? <LuMinimize2 size={15} /> : <LuMaximize2 size={15} />}
-          <span className="hidden sm:inline">
-            {isFullscreen ? "Keluar" : "Fullscreen"}
-          </span>
-        </button>
+        {/* Tombol Download PPTX & Fullscreen */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleDownloadPptx}
+            disabled={isDownloading}
+            title="Unduh PPTX"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-secondary hover:bg-primary disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+          >
+            <LuDownload size={15} />
+            <span className="hidden sm:inline">
+              {isDownloading ? "Membuat PPTX..." : "Download"}
+            </span>
+          </button>
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-secondary hover:bg-primary transition cursor-pointer"
+          >
+            {isFullscreen ? (
+              <LuMinimize2 size={15} />
+            ) : (
+              <LuMaximize2 size={15} />
+            )}
+            <span className="hidden sm:inline">
+              {isFullscreen ? "Keluar" : "Fullscreen"}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
